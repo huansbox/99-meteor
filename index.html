@@ -436,11 +436,8 @@
     <div id="end-screen" class="overlay hidden">
         <h1 class="title">任務完成</h1>
         <div id="rank-display" class="rank-badge hidden">第 1 名！</div>
-        <div style="font-size: 2.5rem; margin-bottom: 10px;">
+        <div style="font-size: 2.5rem; margin-bottom: 30px;">
             總分: <span id="final-score" style="color:var(--gold-accent); text-shadow: 0 0 10px var(--gold-accent);">0</span>
-        </div>
-        <div style="margin-bottom: 30px; color: #cbd5e1; font-size: 1.5rem;">
-            評級: <span id="final-rank" style="font-weight:900; font-size: 3rem; color:var(--primary-accent); margin-left: 10px;">A</span>
         </div>
         <div style="display: flex; gap: 15px;">
             <button class="btn-large" id="btn-restart">再次挑戰</button>
@@ -951,14 +948,6 @@ class Game {
     endGame() {
         document.getElementById('end-screen').classList.remove('hidden');
         document.getElementById('final-score').innerText = this.totalScore;
-
-        const maxScore = STAGES.reduce((sum, s) => sum + s.questions * 100 * s.multiplier, 0);
-        const ratio = this.totalScore / maxScore;
-        let rank = 'C';
-        if (ratio > 0.9) rank = 'S';
-        else if (ratio > 0.8) rank = 'A';
-        else if (ratio > 0.6) rank = 'B';
-        document.getElementById('final-rank').innerText = rank;
 
         // 保存記錄並顯示排名
         const position = this.records.saveRecord(this.totalScore);
