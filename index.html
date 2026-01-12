@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#4CAF50">
+    <title>全壘打乘法王</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 主選單畫面 -->
+        <div id="menu-screen" class="screen active">
+            <div class="menu-container">
+                <h1 class="game-title">全壘打乘法王</h1>
+                <p class="subtitle">Math Baseball</p>
+                <div class="menu-buttons">
+                    <button id="btn-start" class="btn btn-primary">開始遊戲</button>
+                    <button id="btn-collection" class="btn btn-secondary">收藏室</button>
+                    <button id="btn-settings" class="btn btn-secondary">設定</button>
+                </div>
+                <div class="player-stats">
+                    <span class="star-count">⭐ <span id="total-stars">0</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 遊戲畫面 -->
+        <div id="game-screen" class="screen">
+            <!-- 頂部狀態列 -->
+            <div class="game-header">
+                <button id="btn-back" class="btn-icon">←</button>
+                <div class="game-info">
+                    <span class="inning-display">第 <span id="current-inning">1</span> 局</span>
+                    <span class="batter-display">打者 <span id="current-batter">1</span>/3</span>
+                </div>
+                <div class="score-display">
+                    <span class="star-icon">⭐</span>
+                    <span id="game-stars">0</span>
+                </div>
+            </div>
+
+            <!-- 棒球場動畫區 -->
+            <div class="field-container">
+                <canvas id="baseball-field"></canvas>
+                <!-- 壘包指示器 -->
+                <div class="bases-indicator">
+                    <div id="base-2" class="base"></div>
+                    <div id="base-3" class="base"></div>
+                    <div id="base-1" class="base"></div>
+                </div>
+                <!-- 結果顯示 -->
+                <div id="result-display" class="result-display hidden">
+                    <span class="result-text"></span>
+                    <span class="result-stars"></span>
+                </div>
+            </div>
+
+            <!-- 題目與答案區 -->
+            <div class="question-container">
+                <div class="question-display">
+                    <span id="num1" class="number">7</span>
+                    <span class="operator">×</span>
+                    <span id="num2" class="number">8</span>
+                    <span class="equals">=</span>
+                    <span class="question-mark">?</span>
+                </div>
+                <div class="answers-grid">
+                    <button class="btn-answer" data-index="0">54</button>
+                    <button class="btn-answer" data-index="1">56</button>
+                    <button class="btn-answer" data-index="2">48</button>
+                    <button class="btn-answer" data-index="3">63</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 局結算畫面 -->
+        <div id="result-screen" class="screen">
+            <div class="result-container">
+                <h2 class="result-title">本局結束!</h2>
+                <div class="result-summary">
+                    <div class="result-item">
+                        <span class="label">得分</span>
+                        <span id="inning-score" class="value">0</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">獲得星星</span>
+                        <span id="inning-stars" class="value">⭐ 0</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">全壘打</span>
+                        <span id="homerun-count" class="value">0</span>
+                    </div>
+                </div>
+                <div class="result-buttons">
+                    <button id="btn-continue" class="btn btn-primary">繼續下一局</button>
+                    <button id="btn-end" class="btn btn-secondary">返回主選單</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 收藏室畫面 -->
+        <div id="collection-screen" class="screen">
+            <div class="collection-container">
+                <div class="screen-header">
+                    <button id="btn-collection-back" class="btn-icon">←</button>
+                    <h2>收藏室</h2>
+                    <span class="star-count">⭐ <span id="collection-stars">0</span></span>
+                </div>
+                <div class="collection-tabs">
+                    <button class="tab active" data-tab="cards">球員卡</button>
+                    <button class="tab" data-tab="items">裝備</button>
+                </div>
+                <div id="collection-content" class="collection-grid">
+                    <!-- 動態生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 設定畫面 -->
+        <div id="settings-screen" class="screen">
+            <div class="settings-container">
+                <div class="screen-header">
+                    <button id="btn-settings-back" class="btn-icon">←</button>
+                    <h2>設定</h2>
+                    <span></span>
+                </div>
+                <div class="settings-list">
+                    <div class="setting-item">
+                        <span class="setting-label">音效</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="sound-toggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">音量</span>
+                        <input type="range" id="volume-slider" min="0" max="100" value="50">
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">重置進度</span>
+                        <button id="btn-reset" class="btn btn-danger">重置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 載入遊戲腳本 -->
+    <script src="js/storage.js"></script>
+    <script src="js/questions.js"></script>
+    <script src="js/animation.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
