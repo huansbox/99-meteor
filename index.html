@@ -265,10 +265,13 @@
 
         #keypad {
             flex: 1; display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(5, 1fr) 1.2fr;
             grid-template-rows: 1fr 1fr;
             gap: 8px;
             min-height: 0;
+        }
+        .btn-clear {
+            grid-row: span 2;
         }
         .btn {
             background: linear-gradient(145deg, #1e293b, #0f172a);
@@ -286,8 +289,7 @@
             transform: translateY(4px); box-shadow: 0 0 0 #020617, inset 0 2px 5px rgba(0,0,0,0.5); background: #0f172a;
         }
         .btn-num { color: #fff; }
-        .btn-del { background: linear-gradient(145deg, #451a03, #450a0a); color: var(--danger-accent); border-color: rgba(244, 63, 94, 0.3); }
-        .btn-clear { background: linear-gradient(145deg, #0c4a6e, #082f49); color: var(--primary-accent); border-color: rgba(56, 189, 248, 0.3); }
+        .btn-clear { background: linear-gradient(145deg, #0c4a6e, #082f49); color: var(--primary-accent); border-color: rgba(56, 189, 248, 0.3); font-size: 1.8rem; }
 
         /* === 覆蓋層 === */
         .overlay {
@@ -355,13 +357,12 @@
             <button class="btn btn-num" data-val="3">3</button>
             <button class="btn btn-num" data-val="4">4</button>
             <button class="btn btn-num" data-val="5">5</button>
-            <button class="btn btn-del" id="btn-del">刪</button>
+            <button class="btn btn-clear" id="btn-clear">C</button>
             <button class="btn btn-num" data-val="6">6</button>
             <button class="btn btn-num" data-val="7">7</button>
             <button class="btn btn-num" data-val="8">8</button>
             <button class="btn btn-num" data-val="9">9</button>
             <button class="btn btn-num" data-val="0">0</button>
-            <button class="btn btn-clear" id="btn-clear">除</button>
         </div>
     </div>
 
@@ -792,10 +793,6 @@ document.querySelectorAll('.btn-num').forEach(btn => {
         e.preventDefault(); game.handleInput(e.target.dataset.val);
     }));
 });
-const btnDel = document.getElementById('btn-del');
-['click', 'touchstart'].forEach(evt => btnDel.addEventListener(evt, (e) => {
-    e.preventDefault(); game.handleDelete();
-}));
 const btnClear = document.getElementById('btn-clear');
 ['click', 'touchstart'].forEach(evt => btnClear.addEventListener(evt, (e) => {
     e.preventDefault(); game.handleClear();
