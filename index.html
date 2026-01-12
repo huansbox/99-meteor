@@ -2,156 +2,811 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#4CAF50">
-    <title>全壘打乘法王</title>
-    <link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>隕石數學防衛隊</title>
+    <style>
+        /* === 1. 核心變數與重置 === */
+        :root {
+            --space-bg-top: #0f172a;
+            --space-bg-bottom: #1e1b4b;
+            --primary-accent: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.6);
+            --danger-accent: #f43f5e;
+            --gold-accent: #fbbf24;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            font-family: 'Segoe UI', 'Roboto', 'PingFang TC', system-ui, sans-serif;
+        }
+
+        /* 終極修正：強制鎖定 Body 大小，禁止滾動 */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(180deg, var(--space-bg-top) 0%, var(--space-bg-bottom) 100%);
+            color: white;
+            position: fixed; /* 關鍵：防止 iOS Safari 彈性滾動 */
+            inset: 0;
+        }
+
+        #app {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 1024px;
+            margin: 0 auto;
+        }
+
+        /* === 戰場層 (Top 62%) === */
+        /* 使用絕對定位，確保高度固定 */
+        #game-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 62%; /* 固定比例 */
+            overflow: hidden;
+            border-bottom: 2px solid rgba(56, 189, 248, 0.3);
+            perspective: 1000px;
+            z-index: 1;
+        }
+
+        /* === 控制層 (Bottom 38%) === */
+        /* 使用絕對定位釘在底部 */
+        #control-layer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 38%; /* 固定比例 */
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 1) 100%);
+            border-top: 1px solid rgba(56, 189, 248, 0.2);
+            padding: 10px;
+            padding-bottom: env(safe-area-inset-bottom, 10px); /* 避開 iPhone 底部橫條 */
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+            z-index: 20; /* 確保在最上層 */
+        }
+
+        .stars {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(1.5px 1.5px at 20px 30px, #eee, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 40px 70px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 50px 160px, #ddd, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 90px 40px, #fff, rgba(0,0,0,0)),
+                radial-gradient(2.5px 2.5px at 130px 80px, #fff, rgba(0,0,0,0));
+            background-repeat: repeat;
+            background-size: 200px 200px;
+            opacity: 0.5;
+            animation: starScroll 30s linear infinite;
+        }
+
+        @keyframes starScroll {
+            from { transform: translateY(0); }
+            to { transform: translateY(200px); }
+        }
+
+        #hud {
+            position: absolute;
+            top: 0; left: 0; width: 100%; padding: 15px;
+            display: flex; justify-content: space-between; z-index: 10;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        .hud-item {
+            font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 10px;
+            background: rgba(15, 23, 42, 0.6); padding: 8px 16px; border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(4px);
+        }
+
+        .score-val { color: var(--gold-accent); font-family: monospace; font-size: 1.6rem; letter-spacing: 1px;}
+        .progress-val { color: var(--primary-accent); font-family: monospace; }
+
+        #defense-line {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 6px;
+            background: linear-gradient(90deg, transparent 0%, var(--primary-accent) 20%, var(--primary-accent) 80%, transparent 100%);
+            box-shadow: 0 -2px 15px var(--primary-glow); z-index: 5; opacity: 0.8;
+        }
+
+        /* === 砲塔 (Cannon) === */
+        #cannon {
+            position: absolute; bottom: -10px; left: 50%; width: 40px; height: 60px;
+            transform-origin: bottom center; transform: translateX(-50%) rotate(0deg);
+            z-index: 6; transition: transform 0.08s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #cannon .barrel {
+            position: absolute; bottom: 10px; left: 5px; width: 8px; height: 45px;
+            background: linear-gradient(90deg, #64748b, #94a3b8, #64748b);
+            border: 1px solid #475569; border-radius: 4px 4px 0 0; box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        #cannon .barrel.right { left: auto; right: 5px; }
+        #cannon .barrel::before {
+            content: ''; position: absolute; top: -2px; left: 1px; right: 1px; height: 4px;
+            background: #22d3ee; box-shadow: 0 -2px 6px #22d3ee; border-radius: 50%; opacity: 0.8;
+        }
+        #cannon .turret-body {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 35px;
+            background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+            border-radius: 8px 8px 15px 15px; border: 1px solid #475569; z-index: 2;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.1);
+        }
+        #cannon .core-light {
+            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+            width: 12px; height: 12px; background: var(--primary-accent); border-radius: 50%;
+            box-shadow: 0 0 10px var(--primary-accent); animation: corePulse 2s infinite ease-in-out;
+            border: 2px solid rgba(255,255,255,0.8);
+        }
+        @keyframes corePulse {
+            0%, 100% { box-shadow: 0 0 5px var(--primary-accent); opacity: 0.8; }
+            50% { box-shadow: 0 0 15px var(--primary-accent), 0 0 30px var(--primary-accent); opacity: 1; }
+        }
+        #cannon.firing { animation: recoil 0.2s ease-out; }
+        @keyframes recoil {
+            0% { transform: translateX(-50%) rotate(var(--angle)) translateY(0); }
+            20% { transform: translateX(-50%) rotate(var(--angle)) translateY(10px); }
+            100% { transform: translateX(-50%) rotate(var(--angle)) translateY(0); }
+        }
+        #cannon-base {
+            position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%);
+            width: 80px; height: 40px; background: radial-gradient(circle at 50% 0%, #475569, #0f172a);
+            border-radius: 50% 50% 0 0; border-top: 2px solid #64748b; z-index: 5;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+        }
+
+        /* === 隕石 (Meteors) === */
+        .meteor {
+            position: absolute;
+            width: 80px; height: 80px;
+            background: radial-gradient(circle at 40% 40%, #78350f 0%, #451a03 100%);
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.6rem; font-weight: 900; color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            transform: translateX(-50%); z-index: 2;
+            box-shadow: inset -10px -10px 20px rgba(0,0,0,0.7), inset 10px 10px 20px rgba(251, 191, 36, 0.2), 0 0 15px rgba(234, 88, 12, 0.4);
+            border: 1px solid rgba(251, 146, 60, 0.3);
+            transition: top 0.1s linear;
+        }
+        .meteor::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: inherit;
+            background-image: radial-gradient(circle at 20% 80%, rgba(0,0,0,0.4) 10%, transparent 20%),
+                            radial-gradient(circle at 80% 20%, rgba(251, 146, 60, 0.4) 5%, transparent 15%);
+            background-size: 100% 100%; z-index: -1;
+        }
+        .meteor::after {
+            content: ''; position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
+            width: 40px; height: 80px;
+            background: linear-gradient(to top, rgba(234, 88, 12, 0.8), rgba(251, 191, 36, 0), transparent);
+            filter: blur(8px); z-index: -2; border-radius: 50% 50% 0 0;
+            animation: flameFlicker 0.1s infinite alternate;
+        }
+        @keyframes flameFlicker {
+            0% { transform: translateX(-50%) scaleX(1); height: 80px; opacity: 0.8; }
+            100% { transform: translateX(-50%) scaleX(0.9); height: 85px; opacity: 0.6; }
+        }
+        .meteor.grounded {
+            background: radial-gradient(circle at 40% 40%, #64748b, #334155);
+            box-shadow: none; border: 2px solid #475569; color: #cbd5e1;
+        }
+        .meteor.grounded::after { display: none; }
+
+        /* === 碎片 (Debris) === */
+        .debris {
+            position: absolute;
+            background: #fbbf24;
+            border-radius: 30% 70% 50% 50% / 30% 30% 70% 70%;
+            pointer-events: none;
+            z-index: 3;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.8);
+        }
+
+        /* === 砲彈 (Bullet) === */
+        .bullet {
+            position: absolute; width: 14px; height: 14px;
+            background: #fff; border-radius: 50%;
+            box-shadow: 0 0 10px #fff, 0 0 20px var(--primary-accent), 0 0 30px var(--primary-accent);
+            z-index: 5; pointer-events: none; transform: translate(-50%, -50%);
+        }
+        .bullet::after {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 40px; height: 6px;
+            background: linear-gradient(to right, transparent, rgba(56, 189, 248, 0.8));
+            transform-origin: center right; transform: translate(-100%, -50%); border-radius: 10px;
+        }
+
+        /* 爆炸文字 */
+        .pop-text {
+            position: absolute; font-weight: 900; font-size: 2.5rem; color: #fff;
+            text-shadow: 0 0 10px var(--gold-accent), 2px 2px 0px rgba(0,0,0,0.5);
+            animation: floatUp 0.8s ease-out forwards; z-index: 10; pointer-events: none; white-space: nowrap;
+        }
+        @keyframes floatUp {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -150%) scale(1); opacity: 0; }
+        }
+
+        /* === 控制層內元件 === */
+        #input-display {
+            height: 60px; background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(56, 189, 248, 0.4); border-radius: 12px; margin-bottom: 12px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 2.8rem; font-family: 'Segoe UI Mono', monospace;
+            color: var(--primary-accent); text-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
+            position: relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            flex-shrink: 0; /* 防止被壓縮 */
+        }
+        #input-display::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(transparent 50%, rgba(56, 189, 248, 0.05) 50%);
+            background-size: 100% 4px; pointer-events: none;
+        }
+        #input-display.error {
+            animation: shake 0.3s; color: var(--danger-accent); border-color: var(--danger-accent);
+            text-shadow: 0 0 15px var(--danger-accent);
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        #keypad {
+            flex: 1; display: grid;
+            grid-template-areas: "n1 n2 n3 del" "n4 n5 n6 del" "n7 n8 n9 ok" "empty n0 empty ok";
+            grid-template-columns: 1fr 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr 1fr; gap: 10px;
+            min-height: 0; /* 允許 Grid 在 Flex 容器中正確縮放 */
+        }
+        .btn {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #e2e8f0;
+            font-size: 2rem; font-weight: 600; cursor: pointer;
+            display: flex; justify-content: center; align-items: center;
+            transition: all 0.1s; box-shadow: 0 4px 0 #020617, 0 5px 10px rgba(0,0,0,0.3);
+            position: relative; overflow: hidden;
+        }
+        .btn::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 50%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.05), transparent); pointer-events: none;
+        }
+        .btn:active {
+            transform: translateY(4px); box-shadow: 0 0 0 #020617, inset 0 2px 5px rgba(0,0,0,0.5); background: #0f172a;
+        }
+        .btn-num { color: #fff; }
+        .btn-del { grid-area: del; background: linear-gradient(145deg, #451a03, #450a0a); color: var(--danger-accent); border-color: rgba(244, 63, 94, 0.3); }
+        .btn-ok { grid-area: ok; background: linear-gradient(145deg, #0c4a6e, #082f49); color: var(--primary-accent); border-color: rgba(56, 189, 248, 0.3); font-size: 1.2rem; }
+
+        .n1 { grid-area: n1; } .n2 { grid-area: n2; } .n3 { grid-area: n3; }
+        .n4 { grid-area: n4; } .n5 { grid-area: n5; } .n6 { grid-area: n6; }
+        .n7 { grid-area: n7; } .n8 { grid-area: n8; } .n9 { grid-area: n9; }
+        .n0 { grid-area: n0; }
+
+        /* === 覆蓋層 === */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+        }
+        .title {
+            font-size: 4rem; background: linear-gradient(to right, #38bdf8, #818cf8, #c084fc);
+            -webkit-background-clip: text; color: transparent; margin-bottom: 10px;
+            text-transform: uppercase; letter-spacing: 4px;
+            filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.5)); animation: floatTitle 3s ease-in-out infinite;
+        }
+        @keyframes floatTitle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .subtitle { color: #94a3b8; font-size: 1.2rem; margin-bottom: 40px; letter-spacing: 1px; }
+        .btn-large {
+            padding: 20px 60px; font-size: 1.8rem;
+            background: linear-gradient(135deg, var(--primary-accent), #2563eb); color: #fff;
+            border: none; border-radius: 50px; font-weight: 800; cursor: pointer;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.4), inset 0 2px 0 rgba(255,255,255,0.3);
+            transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden;
+        }
+        .btn-large:active { transform: scale(0.95); box-shadow: 0 5px 10px rgba(37, 99, 235, 0.4); }
+        .btn-large::after {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+            transform: rotate(45deg); animation: sheen 3s infinite;
+        }
+        @keyframes sheen {
+            0% { transform: translateX(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) rotate(45deg); }
+        }
+        .hidden { display: none !important; }
+
+    </style>
 </head>
 <body>
-    <div id="app">
-        <!-- 主選單畫面 -->
-        <div id="menu-screen" class="screen active">
-            <div class="menu-container">
-                <h1 class="game-title">全壘打乘法王</h1>
-                <p class="subtitle">Math Baseball</p>
-                <div class="menu-buttons">
-                    <button id="btn-start" class="btn btn-primary">開始遊戲</button>
-                    <button id="btn-collection" class="btn btn-secondary">收藏室</button>
-                    <button id="btn-settings" class="btn btn-secondary">設定</button>
-                </div>
-                <div class="player-stats">
-                    <span class="star-count">⭐ <span id="total-stars">0</span></span>
-                </div>
-            </div>
+
+<div id="app">
+    <div id="game-layer">
+        <div class="stars"></div>
+        <div id="hud">
+            <div class="hud-item"><span>⭐</span> <span class="score-val" id="score">0</span></div>
+            <div class="hud-item"><span>☄️</span> <span class="progress-val" id="progress">0/20</span></div>
         </div>
-
-        <!-- 遊戲畫面 -->
-        <div id="game-screen" class="screen">
-            <!-- 頂部狀態列 -->
-            <div class="game-header">
-                <button id="btn-back" class="btn-icon">←</button>
-                <div class="game-info">
-                    <span class="inning-display">第 <span id="current-inning">1</span> 局</span>
-                    <span class="batter-display">打者 <span id="current-batter">1</span>/3</span>
-                </div>
-                <div class="score-display">
-                    <span class="star-icon">⭐</span>
-                    <span id="game-stars">0</span>
-                </div>
-            </div>
-
-            <!-- 棒球場動畫區 -->
-            <div class="field-container">
-                <canvas id="baseball-field"></canvas>
-                <!-- 壘包指示器 -->
-                <div class="bases-indicator">
-                    <div id="base-2" class="base"></div>
-                    <div id="base-3" class="base"></div>
-                    <div id="base-1" class="base"></div>
-                </div>
-                <!-- 結果顯示 -->
-                <div id="result-display" class="result-display hidden">
-                    <span class="result-text"></span>
-                    <span class="result-stars"></span>
-                </div>
-            </div>
-
-            <!-- 題目與答案區 -->
-            <div class="question-container">
-                <div class="question-display">
-                    <span id="num1" class="number">7</span>
-                    <span class="operator">×</span>
-                    <span id="num2" class="number">8</span>
-                    <span class="equals">=</span>
-                    <span class="question-mark">?</span>
-                </div>
-                <div class="answers-grid">
-                    <button class="btn-answer" data-index="0">54</button>
-                    <button class="btn-answer" data-index="1">56</button>
-                    <button class="btn-answer" data-index="2">48</button>
-                    <button class="btn-answer" data-index="3">63</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 局結算畫面 -->
-        <div id="result-screen" class="screen">
-            <div class="result-container">
-                <h2 class="result-title">本局結束!</h2>
-                <div class="result-summary">
-                    <div class="result-item">
-                        <span class="label">得分</span>
-                        <span id="inning-score" class="value">0</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="label">獲得星星</span>
-                        <span id="inning-stars" class="value">⭐ 0</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="label">全壘打</span>
-                        <span id="homerun-count" class="value">0</span>
-                    </div>
-                </div>
-                <div class="result-buttons">
-                    <button id="btn-continue" class="btn btn-primary">繼續下一局</button>
-                    <button id="btn-end" class="btn btn-secondary">返回主選單</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 收藏室畫面 -->
-        <div id="collection-screen" class="screen">
-            <div class="collection-container">
-                <div class="screen-header">
-                    <button id="btn-collection-back" class="btn-icon">←</button>
-                    <h2>收藏室</h2>
-                    <span class="star-count">⭐ <span id="collection-stars">0</span></span>
-                </div>
-                <div class="collection-tabs">
-                    <button class="tab active" data-tab="cards">球員卡</button>
-                    <button class="tab" data-tab="items">裝備</button>
-                </div>
-                <div id="collection-content" class="collection-grid">
-                    <!-- 動態生成 -->
-                </div>
-            </div>
-        </div>
-
-        <!-- 設定畫面 -->
-        <div id="settings-screen" class="screen">
-            <div class="settings-container">
-                <div class="screen-header">
-                    <button id="btn-settings-back" class="btn-icon">←</button>
-                    <h2>設定</h2>
-                    <span></span>
-                </div>
-                <div class="settings-list">
-                    <div class="setting-item">
-                        <span class="setting-label">音效</span>
-                        <label class="toggle">
-                            <input type="checkbox" id="sound-toggle" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    <div class="setting-item">
-                        <span class="setting-label">音量</span>
-                        <input type="range" id="volume-slider" min="0" max="100" value="50">
-                    </div>
-                    <div class="setting-item">
-                        <span class="setting-label">重置進度</span>
-                        <button id="btn-reset" class="btn btn-danger">重置</button>
-                    </div>
-                </div>
-            </div>
+        <div id="game-container"></div>
+        <div id="defense-line"></div>
+        <div id="cannon-base"></div>
+        <div id="cannon">
+            <div class="barrel left"></div>
+            <div class="barrel right"></div>
+            <div class="turret-body"></div>
+            <div class="core-light"></div>
         </div>
     </div>
 
-    <!-- 載入遊戲腳本 -->
-    <script src="js/storage.js"></script>
-    <script src="js/questions.js"></script>
-    <script src="js/animation.js"></script>
-    <script src="js/game.js"></script>
+    <div id="control-layer">
+        <div id="input-display"></div>
+        <div id="keypad">
+            <button class="btn btn-num n1" data-val="1">1</button>
+            <button class="btn btn-num n2" data-val="2">2</button>
+            <button class="btn btn-num n3" data-val="3">3</button>
+            <button class="btn btn-num n4" data-val="4">4</button>
+            <button class="btn btn-num n5" data-val="5">5</button>
+            <button class="btn btn-num n6" data-val="6">6</button>
+            <button class="btn btn-num n7" data-val="7">7</button>
+            <button class="btn btn-num n8" data-val="8">8</button>
+            <button class="btn btn-num n9" data-val="9">9</button>
+            <button class="btn btn-num n0" data-val="0">0</button>
+            <button class="btn btn-del" id="btn-del">DEL</button>
+            <button class="btn btn-ok" id="btn-ok">II</button>
+        </div>
+    </div>
+
+    <div id="start-screen" class="overlay">
+        <h1 class="title">隕石數學防衛隊</h1>
+        <p class="subtitle">TARGET: METEOR // WEAPON: MATH</p>
+        <button class="btn-large" id="btn-start">開始任務</button>
+    </div>
+
+    <div id="end-screen" class="overlay hidden">
+        <h1 class="title">任務完成</h1>
+        <div style="font-size: 2.5rem; margin-bottom: 10px;">
+            得分: <span id="final-score" style="color:var(--gold-accent); text-shadow: 0 0 10px var(--gold-accent);">0</span>
+        </div>
+        <div style="margin-bottom: 40px; color: #cbd5e1; font-size: 1.5rem;">
+            評級: <span id="final-rank" style="font-weight:900; font-size: 3rem; color:var(--primary-accent); margin-left: 10px;">A</span>
+        </div>
+        <button class="btn-large" id="btn-restart">再次挑戰</button>
+    </div>
+</div>
+
+<script>
+/**
+ * 隕石數學防衛隊 - 核心引擎
+ * v3.8 Absolute Positioning Layout Fixed
+ */
+
+const METEOR_SHAPES = [
+    '50%',
+    '60% 40% 30% 70% / 60% 30% 70% 40%',
+    '30% 70% 70% 30% / 30% 30% 70% 70%',
+    '40% 60% 60% 40% / 40% 60% 40% 60%',
+    '70% 30% 40% 60% / 50% 40% 60% 50%',
+    '20% 80% 30% 70% / 50% 30% 70% 50%',
+    '80% 20% 70% 30% / 60% 40% 30% 70%',
+    '40% 60% 50% 50% / 50% 50% 60% 40%',
+    '50% 50% 20% 80% / 25% 80% 20% 75%',
+    '73% 27% 57% 43% / 28% 57% 43% 72%'
+];
+
+class AudioEngine {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.connect(this.ctx.destination);
+        this.masterGain.gain.value = 0.3;
+    }
+    playTone(freq, type, duration, startTime = 0) {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + startTime);
+        gain.gain.setValueAtTime(0.5, this.ctx.currentTime + startTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + startTime + duration);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(this.ctx.currentTime + startTime);
+        osc.stop(this.ctx.currentTime + startTime + duration);
+    }
+    playShoot() {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.15);
+    }
+    playExplosion(size = 'small') {
+        const freq = size === 'huge' ? 60 : 120;
+        const dur = size === 'huge' ? 0.4 : 0.2;
+        this.playTone(freq, 'sawtooth', dur);
+        this.playTone(freq - 30, 'square', dur + 0.1);
+    }
+    playSuccess(level) {
+        if (level === 'sky') {
+            this.playTone(523.25, 'triangle', 0.1, 0);
+            this.playTone(659.25, 'triangle', 0.1, 0.1);
+            this.playTone(783.99, 'triangle', 0.3, 0.2);
+        } else {
+            this.playTone(523.25, 'sine', 0.1, 0);
+        }
+    }
+    playError() {
+        this.playTone(150, 'sawtooth', 0.2);
+        this.playTone(100, 'sawtooth', 0.2, 0.1);
+    }
+}
+
+const GAME_CONFIG = {
+    totalQuestions: 20,
+    spawnIntervalBase: 2000,
+    fallSpeedBase: 0.5,
+    zones: { sky: 0.3, high: 0.6, low: 0.85 }
+};
+
+class Game {
+    constructor() {
+        this.audio = new AudioEngine();
+        this.activeMeteors = [];
+        this.score = 0;
+        this.questionsLeft = GAME_CONFIG.totalQuestions;
+        this.gameLoopId = null;
+        this.lastSpawnTime = 0;
+        this.isGameOver = false;
+        this.isPaused = false;
+        this.lastMeteorX = null;
+
+        this.elContainer = document.getElementById('game-container');
+        this.elCannon = document.getElementById('cannon');
+        this.elScore = document.getElementById('score');
+        this.elProgress = document.getElementById('progress');
+        this.elInput = document.getElementById('input-display');
+
+        this.inputBuffer = '';
+        this.inputTimer = null;
+        this.isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    }
+
+    start() {
+        this.reset();
+        this.gameLoopId = requestAnimationFrame((t) => this.loop(t));
+    }
+
+    reset() {
+        this.activeMeteors = [];
+        this.score = 0;
+        this.questionsLeft = GAME_CONFIG.totalQuestions;
+        this.isGameOver = false;
+        this.inputBuffer = '';
+        this.lastMeteorX = null;
+        this.elContainer.innerHTML = '';
+        this.updateHUD();
+        this.updateInputDisplay();
+        this.elCannon.style.transform = `translateX(-50%) rotate(0deg)`;
+    }
+
+    loop(timestamp) {
+        if (this.isGameOver || this.isPaused) return;
+
+        if (this.questionsLeft > 0 &&
+            timestamp - this.lastSpawnTime > GAME_CONFIG.spawnIntervalBase &&
+            this.activeMeteors.filter(m => !m.destroyed).length < 2) {
+            this.spawnMeteor();
+            this.lastSpawnTime = timestamp;
+        }
+
+        const gameHeight = document.getElementById('game-layer').offsetHeight;
+        const defenseLineY = gameHeight - 6;
+
+        this.activeMeteors.forEach(meteor => {
+            if (meteor.destroyed) return;
+            if (!meteor.isGrounded) {
+                meteor.y += meteor.speed;
+                if (meteor.y >= defenseLineY - 80) this.handleGrounded(meteor);
+                meteor.el.style.top = `${meteor.y}px`;
+            }
+        });
+
+        if (this.questionsLeft === 0 && this.activeMeteors.length === 0) {
+            this.endGame();
+            return;
+        }
+        this.gameLoopId = requestAnimationFrame((t) => this.loop(t));
+    }
+
+    spawnMeteor() {
+        const q = this.generateQuestion();
+        const shapeIdx = Math.floor(Math.random() * METEOR_SHAPES.length);
+
+        let x;
+        if (this.lastMeteorX === null) {
+            x = 25;
+        } else {
+            let attempts = 0;
+            const minDistance = 20;
+            do {
+                x = Math.random() * 80 + 10;
+                attempts++;
+            } while (Math.abs(x - this.lastMeteorX) < minDistance && attempts < 10);
+        }
+        this.lastMeteorX = x;
+
+        const meteor = {
+            id: Date.now(),
+            q: q,
+            y: -90,
+            x: x,
+            speed: GAME_CONFIG.fallSpeedBase + (Math.random() * 0.5),
+            isGrounded: false,
+            destroyed: false,
+            shape: METEOR_SHAPES[shapeIdx],
+            el: null
+        };
+
+        const el = document.createElement('div');
+        el.className = 'meteor';
+        el.textContent = `${q.a}×${q.b}`;
+        el.style.left = `${meteor.x}%`;
+        el.style.top = `${meteor.y}px`;
+        el.style.borderRadius = meteor.shape;
+
+        this.elContainer.appendChild(el);
+        meteor.el = el;
+
+        this.activeMeteors.push(meteor);
+        this.questionsLeft--;
+        this.updateHUD();
+    }
+
+    generateQuestion() {
+        const isHard = Math.random() > 0.4;
+        const a = isHard ? Math.floor(Math.random() * 4) + 6 : Math.floor(Math.random() * 8) + 2;
+        const b = Math.floor(Math.random() * 8) + 2;
+        return { a, b, ans: a * b };
+    }
+
+    handleGrounded(meteor) {
+        meteor.isGrounded = true;
+        meteor.y = document.getElementById('game-layer').offsetHeight - 86;
+        meteor.el.style.top = `${meteor.y}px`;
+        meteor.el.classList.add('grounded');
+    }
+
+    handleInput(digit) {
+        if (this.isGameOver) return;
+        if (this.inputTimer) clearTimeout(this.inputTimer);
+        if (this.inputBuffer.length < 2) this.inputBuffer += digit;
+        this.updateInputDisplay();
+        const len = this.inputBuffer.length;
+        const delay = this.isTouch ? (len === 1 ? 800 : 400) : (len === 1 ? 600 : 300);
+        this.inputTimer = setTimeout(() => { this.submitAnswer(); }, delay);
+    }
+
+    handleDelete() {
+        this.inputBuffer = this.inputBuffer.slice(0, -1);
+        if (this.inputTimer) clearTimeout(this.inputTimer);
+        this.updateInputDisplay();
+    }
+
+    submitAnswer() {
+        if (!this.inputBuffer) return;
+        const val = parseInt(this.inputBuffer);
+        const targets = this.activeMeteors
+            .filter(m => !m.destroyed && m.q.ans === val)
+            .sort((a, b) => b.y - a.y);
+
+        if (targets.length > 0) {
+            this.fireCannon(targets[0]);
+        } else {
+            this.handleMiss();
+        }
+        this.inputBuffer = '';
+        this.updateInputDisplay();
+    }
+
+    fireCannon(meteor) {
+        const gameRect = document.getElementById('game-layer').getBoundingClientRect();
+        const cannonX = gameRect.width / 2;
+        const cannonY = gameRect.height;
+        const meteorXPx = (meteor.x / 100) * gameRect.width;
+        const meteorYPx = meteor.y + 40;
+        const dx = meteorXPx - cannonX;
+        const dy = meteorYPx - cannonY;
+        const angleRad = Math.atan2(dy, dx);
+        const angleDeg = angleRad * (180 / Math.PI) + 90;
+
+        this.elCannon.style.setProperty('--angle', `${angleDeg}deg`);
+        this.elCannon.style.transform = `translateX(-50%) rotate(${angleDeg}deg)`;
+
+        this.elCannon.classList.remove('firing');
+        void this.elCannon.offsetWidth;
+        this.elCannon.classList.add('firing');
+
+        const flightTime = 300;
+        this.createBullet(angleDeg, dx, dy, flightTime, () => {
+            this.destroyMeteor(meteor);
+        });
+        this.audio.playShoot();
+    }
+
+    createBullet(angleDeg, dx, dy, duration, onHit) {
+        const bullet = document.createElement('div');
+        bullet.className = 'bullet';
+        bullet.style.bottom = '40px';
+        bullet.style.left = '50%';
+        bullet.style.transform = `translate(-50%, -50%) rotate(${angleDeg - 90}deg)`;
+        this.elContainer.appendChild(bullet);
+
+        const anim = bullet.animate([
+            { transform: `translate(-50%, -50%) rotate(${angleDeg - 90}deg) translate(0, 0)` },
+            { transform: `translate(-50%, -50%) rotate(${angleDeg - 90}deg) translate(${Math.hypot(dx, dy)}px, 0)` }
+        ], {
+            duration: duration,
+            easing: 'linear'
+        });
+
+        anim.onfinish = () => {
+            bullet.remove();
+            if (onHit) onHit();
+        };
+    }
+
+    destroyMeteor(meteor) {
+        if(meteor.destroyed) return;
+        meteor.destroyed = true;
+
+        const gameH = document.getElementById('game-layer').offsetHeight;
+        const ratio = meteor.y / gameH;
+        let points = 0;
+        let zone = 'ground';
+
+        if (meteor.isGrounded) {
+            points = 40; zone = 'ground';
+        } else if (ratio < GAME_CONFIG.zones.sky) {
+            points = 100; zone = 'sky';
+        } else if (ratio < GAME_CONFIG.zones.high) {
+            points = 80; zone = 'high';
+        } else {
+            points = 60; zone = 'low';
+        }
+
+        this.score += points;
+        this.updateHUD();
+        this.createExplosion(meteor, zone);
+        this.createDebris(meteor);
+        meteor.el.remove();
+        this.activeMeteors = this.activeMeteors.filter(m => m !== meteor);
+        this.audio.playSuccess('sky');
+    }
+
+    createDebris(meteor) {
+        const count = 6 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < count; i++) {
+            const debris = document.createElement('div');
+            debris.className = 'debris';
+            debris.style.left = `${meteor.x}%`;
+            debris.style.top = `${meteor.y}px`;
+
+            const size = 10 + Math.random() * 15;
+            debris.style.width = `${size}px`;
+            debris.style.height = `${size}px`;
+            debris.style.borderRadius = METEOR_SHAPES[Math.floor(Math.random() * METEOR_SHAPES.length)];
+
+            this.elContainer.appendChild(debris);
+
+            const angle = Math.random() * Math.PI * 2;
+            const velocity = 50 + Math.random() * 100;
+            const dx = Math.cos(angle) * velocity;
+            const dy = Math.sin(angle) * velocity;
+
+            const anim = debris.animate([
+                { transform: `translate(-50%, -50%) scale(1) rotate(0deg)`, opacity: 1 },
+                { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy + 150}px)) scale(0) rotate(${Math.random()*360}deg)`, opacity: 0 }
+            ], {
+                duration: 600 + Math.random() * 200,
+                easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            });
+
+            anim.onfinish = () => debris.remove();
+        }
+    }
+
+    handleMiss() {
+        const display = document.getElementById('input-display');
+        display.classList.add('error');
+        this.audio.playError();
+        setTimeout(() => display.classList.remove('error'), 300);
+    }
+
+    createExplosion(meteor, zone) {
+        const text = document.createElement('div');
+        text.className = 'pop-text';
+        text.style.left = `${meteor.x}%`;
+        text.style.top = `${meteor.y}px`;
+
+        let msg = '';
+        if(zone === 'sky') { msg = 'PERFECT! +100'; text.style.color = '#fbbf24'; text.style.fontSize='3rem'; }
+        else if(zone === 'high') { msg = 'GREAT! +80'; text.style.color = '#38bdf8'; }
+        else if(zone === 'low') { msg = 'GOOD +60'; text.style.color = '#fff'; text.style.fontSize='1.8rem'; }
+        else { msg = 'HIT +40'; text.style.color = '#94a3b8'; text.style.fontSize='1.5rem'; }
+
+        text.innerText = msg;
+        this.elContainer.appendChild(text);
+        setTimeout(() => text.remove(), 800);
+        this.audio.playExplosion(zone === 'sky' ? 'huge' : 'small');
+    }
+
+    updateHUD() {
+        this.elScore.innerText = this.score;
+        this.elProgress.innerText = `${GAME_CONFIG.totalQuestions - this.questionsLeft}/${GAME_CONFIG.totalQuestions}`;
+    }
+
+    updateInputDisplay() {
+        this.elInput.innerText = this.inputBuffer;
+    }
+
+    endGame() {
+        this.isGameOver = true;
+        cancelAnimationFrame(this.gameLoopId);
+        document.getElementById('end-screen').classList.remove('hidden');
+        document.getElementById('final-score').innerText = this.score;
+        let rank = 'C';
+        const maxScore = GAME_CONFIG.totalQuestions * 100;
+        const ratio = this.score / maxScore;
+        if (ratio > 0.9) rank = 'S';
+        else if (ratio > 0.8) rank = 'A';
+        else if (ratio > 0.6) rank = 'B';
+        document.getElementById('final-rank').innerText = rank;
+    }
+}
+
+const game = new Game();
+document.querySelectorAll('.btn-num').forEach(btn => {
+    ['click', 'touchstart'].forEach(evt => btn.addEventListener(evt, (e) => {
+        e.preventDefault(); game.handleInput(e.target.dataset.val);
+    }));
+});
+const btnDel = document.getElementById('btn-del');
+['click', 'touchstart'].forEach(evt => btnDel.addEventListener(evt, (e) => {
+    e.preventDefault(); game.handleDelete();
+}));
+document.getElementById('btn-start').addEventListener('click', () => {
+    document.getElementById('start-screen').classList.add('hidden');
+    if(game.audio.ctx.state === 'suspended') game.audio.ctx.resume();
+    game.start();
+});
+document.getElementById('btn-restart').addEventListener('click', () => {
+    document.getElementById('end-screen').classList.add('hidden');
+    game.start();
+});
+document.addEventListener('keydown', (e) => {
+    if(e.key >= '0' && e.key <= '9') game.handleInput(e.key);
+    if(e.key === 'Backspace') game.handleDelete();
+});
+</script>
 </body>
 </html>
