@@ -566,23 +566,24 @@ class AudioEngine {
     }
 }
 
-// === 題庫定義 ===
-// Easy: ×1, ×2, ×5, ×10 組合
-const EASY_QUESTIONS = [];
-[1, 2, 5, 10].forEach(a => {
-    for (let b = 1; b <= 9; b++) {
-        EASY_QUESTIONS.push({ a, b, ans: a * b });
-        if (a !== b) EASY_QUESTIONS.push({ a: b, b: a, ans: a * b });
-    }
-});
+// === 題庫定義（同 99times）===
+// Easy: n×2 所有組合 + 3×3（16 題）
+const EASY_QUESTIONS = [
+    { a: 2, b: 2, ans: 4 }, { a: 2, b: 3, ans: 6 }, { a: 2, b: 4, ans: 8 }, { a: 2, b: 5, ans: 10 },
+    { a: 2, b: 6, ans: 12 }, { a: 2, b: 7, ans: 14 }, { a: 2, b: 8, ans: 16 }, { a: 2, b: 9, ans: 18 },
+    { a: 3, b: 2, ans: 6 }, { a: 3, b: 3, ans: 9 },
+    { a: 4, b: 2, ans: 8 }, { a: 5, b: 2, ans: 10 }, { a: 6, b: 2, ans: 12 },
+    { a: 7, b: 2, ans: 14 }, { a: 8, b: 2, ans: 16 }, { a: 9, b: 2, ans: 18 }
+];
 
-// Normal: 其餘組合 (3,4,6,7,8,9 互乘)
-const NORMAL_QUESTIONS = [];
-[3, 4, 6, 7, 8, 9].forEach(a => {
-    [3, 4, 6, 7, 8, 9].forEach(b => {
-        NORMAL_QUESTIONS.push({ a, b, ans: a * b });
-    });
-});
+// Hard: 其餘組合（48 題）
+const HARD_QUESTIONS = [];
+for (let a = 3; a <= 9; a++) {
+    for (let b = 3; b <= 9; b++) {
+        if (a === 3 && b === 3) continue; // 3×3 已在 Easy
+        HARD_QUESTIONS.push({ a, b, ans: a * b });
+    }
+}
 
 const STAGES = [
     { stage: 1, questions: 10, interval: 4000, speedMin: 0.6, speedMax: 0.9, multiplier: 1.0, easyRatio: 0.7 },
@@ -737,7 +738,7 @@ class Game {
 
     generateQuestion() {
         const stage = this.currentStage;
-        const pool = Math.random() < stage.easyRatio ? EASY_QUESTIONS : NORMAL_QUESTIONS;
+        const pool = Math.random() < stage.easyRatio ? EASY_QUESTIONS : HARD_QUESTIONS;
         const q = pool[Math.floor(Math.random() * pool.length)];
         return { a: q.a, b: q.b, ans: q.ans };
     }
