@@ -374,6 +374,58 @@
         .lb-score { font-size: 1.5rem; font-weight: 700; color: #fff; flex: 1; text-align: center; }
         .lb-date { font-size: 0.9rem; color: #64748b; }
 
+        /* 統計按鈕（不明顯） */
+        .btn-stats {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 40px; height: 40px; border-radius: 50%;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: #64748b; font-size: 1.2rem; cursor: pointer;
+            opacity: 0.5; transition: opacity 0.2s;
+        }
+        .btn-stats:hover { opacity: 1; }
+
+        /* 統計頁面 */
+        .stats-tabs {
+            display: flex; gap: 10px; margin-bottom: 15px;
+        }
+        .stats-tab {
+            padding: 8px 16px; border-radius: 20px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: #94a3b8; cursor: pointer; font-size: 0.9rem;
+        }
+        .stats-tab.active {
+            background: var(--primary-accent); color: #0f172a; border-color: var(--primary-accent);
+        }
+        .stats-content {
+            width: 90%; max-width: 500px; max-height: 50vh;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 12px; padding: 15px;
+            margin-bottom: 20px; overflow-y: auto;
+        }
+        .stats-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .stats-item:last-child { border-bottom: none; }
+        .stats-question { font-size: 1.2rem; font-weight: 600; color: #fff; }
+        .stats-count { font-size: 1rem; color: var(--primary-accent); }
+        .stats-streak { font-size: 0.9rem; color: #f97316; margin-left: 10px; }
+        .stats-empty { color: #64748b; text-align: center; padding: 30px; }
+
+        /* 乘數分頁 */
+        .stats-multiplier-tabs {
+            display: flex; gap: 6px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center;
+        }
+        .multiplier-tab {
+            width: 40px; height: 36px; border-radius: 8px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: #94a3b8; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+        }
+        .multiplier-tab.active {
+            background: var(--gold-accent); color: #1e1b4b; border-color: var(--gold-accent);
+        }
+
     </style>
 </head>
 <body>
@@ -422,6 +474,7 @@
             <button class="btn-large" id="btn-start">開始任務</button>
             <button class="btn-large btn-secondary" id="btn-leaderboard">排行榜</button>
         </div>
+        <button class="btn-stats" id="btn-stats">📊</button>
     </div>
 
     <div id="stage-screen" class="overlay hidden">
@@ -439,9 +492,10 @@
         <div style="font-size: 2.5rem; margin-bottom: 30px;">
             總分: <span id="final-score" style="color:var(--gold-accent); text-shadow: 0 0 10px var(--gold-accent);">0</span>
         </div>
-        <div style="display: flex; gap: 15px;">
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
             <button class="btn-large" id="btn-restart">再次挑戰</button>
             <button class="btn-large btn-secondary" id="btn-end-leaderboard">排行榜</button>
+            <button class="btn-large btn-secondary" id="btn-home">主畫面</button>
         </div>
     </div>
 
@@ -449,6 +503,27 @@
         <h1 class="title" style="font-size: 2.5rem;">排行榜</h1>
         <div id="leaderboard-list" class="leaderboard-list"></div>
         <button class="btn-large" id="btn-lb-back">返回</button>
+    </div>
+
+    <div id="stats-screen" class="overlay hidden">
+        <h1 class="title" style="font-size: 2rem;">答題統計</h1>
+        <div class="stats-tabs">
+            <button class="stats-tab active" data-tab="errors">錯題庫</button>
+            <button class="stats-tab" data-tab="weak">弱點題</button>
+            <button class="stats-tab" data-tab="all">全部</button>
+        </div>
+        <div id="stats-multiplier-tabs" class="stats-multiplier-tabs hidden">
+            <button class="multiplier-tab active" data-mult="2">2×</button>
+            <button class="multiplier-tab" data-mult="3">3×</button>
+            <button class="multiplier-tab" data-mult="4">4×</button>
+            <button class="multiplier-tab" data-mult="5">5×</button>
+            <button class="multiplier-tab" data-mult="6">6×</button>
+            <button class="multiplier-tab" data-mult="7">7×</button>
+            <button class="multiplier-tab" data-mult="8">8×</button>
+            <button class="multiplier-tab" data-mult="9">9×</button>
+        </div>
+        <div id="stats-content" class="stats-content"></div>
+        <button class="btn-large" id="btn-stats-back">返回</button>
     </div>
 </div>
 
@@ -495,6 +570,129 @@ class RecordsManager {
     getHighScore() {
         const records = this.getRecords();
         return records.length > 0 ? records[0].score : 0;
+    }
+}
+
+// === 答題統計管理 ===
+class StatsManager {
+    constructor() {
+        this.statsKey = 'meteor-math-stats';
+        this.errorKey = 'meteor-math-errors';
+    }
+
+    // === questionStats 操作 ===
+    getStats() {
+        const stats = localStorage.getItem(this.statsKey);
+        if (!stats) return this.initStats();
+        return JSON.parse(stats);
+    }
+
+    initStats() {
+        const stats = {};
+        // 初始化所有 64 題為 0
+        [...EASY_QUESTIONS, ...HARD_QUESTIONS].forEach(q => {
+            stats[`${q.a}×${q.b}`] = 0;
+        });
+        localStorage.setItem(this.statsKey, JSON.stringify(stats));
+        return stats;
+    }
+
+    saveStats(stats) {
+        localStorage.setItem(this.statsKey, JSON.stringify(stats));
+    }
+
+    incrementCorrect(questionKey) {
+        const stats = this.getStats();
+        stats[questionKey] = (stats[questionKey] || 0) + 1;
+        this.saveStats(stats);
+    }
+
+    // === errorBank 操作 ===
+    getErrors() {
+        const errors = localStorage.getItem(this.errorKey);
+        return errors ? JSON.parse(errors) : [];
+    }
+
+    saveErrors(errors) {
+        localStorage.setItem(this.errorKey, JSON.stringify(errors));
+    }
+
+    addError(questionKey) {
+        const errors = this.getErrors();
+        const existing = errors.find(e => e.key === questionKey);
+        if (existing) {
+            existing.streak = 0; // 重置連續答對次數
+        } else {
+            errors.push({ key: questionKey, streak: 0 });
+        }
+        this.saveErrors(errors);
+    }
+
+    incrementStreak(questionKey) {
+        const errors = this.getErrors();
+        const idx = errors.findIndex(e => e.key === questionKey);
+        if (idx === -1) return;
+
+        errors[idx].streak += 1;
+        if (errors[idx].streak >= 3) {
+            errors.splice(idx, 1); // 連續答對 3 次，移出錯題庫
+        }
+        this.saveErrors(errors);
+    }
+
+    // === 智慧選題 ===
+    // 從池中選出答對次數最少的 N 題，然後隨機挑選 count 題
+    selectFromPool(pool, count, excludeKeys = []) {
+        if (count <= 0) return [];
+
+        const stats = this.getStats();
+        // 過濾掉已排除的題目
+        const available = pool.filter(q => !excludeKeys.includes(`${q.a}×${q.b}`));
+        if (available.length === 0) return [];
+
+        // 按答對次數排序
+        const sorted = available
+            .map(q => ({ ...q, key: `${q.a}×${q.b}`, correct: stats[`${q.a}×${q.b}`] || 0 }))
+            .sort((a, b) => a.correct - b.correct);
+
+        // 找出最低 N 題（擴展邏輯：若不足則往上取）
+        const targetPoolSize = pool === EASY_QUESTIONS ? 8 : 24;
+        const candidates = this.getLowestN(sorted, targetPoolSize);
+
+        // 從候選池隨機選 count 題
+        return this.shuffle(candidates).slice(0, Math.min(count, candidates.length));
+    }
+
+    // 取得答對次數最低的 N 題（若不足則擴展到次低）
+    getLowestN(sortedQuestions, n) {
+        if (sortedQuestions.length <= n) return sortedQuestions;
+
+        const result = [];
+        let currentCount = sortedQuestions[0].correct;
+        let i = 0;
+
+        while (i < sortedQuestions.length && result.length < n) {
+            if (sortedQuestions[i].correct === currentCount) {
+                result.push(sortedQuestions[i]);
+                i++;
+            } else if (result.length < n) {
+                // 需要更多題目，擴展到下一個次數等級
+                currentCount = sortedQuestions[i].correct;
+            }
+        }
+
+        // 如果剛好在邊界，可能會超過 n，但這是符合設計的
+        // （同次數的題目要一起納入）
+        return result;
+    }
+
+    shuffle(array) {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
     }
 }
 
@@ -595,10 +793,30 @@ const GAME_CONFIG = {
     zones: { sky: 0.3, high: 0.6, low: 0.85 }
 };
 
+// === 智慧出題配額表 ===
+const QUOTA_TABLE = {
+    0: { // 錯題數 = 0
+        1: { error: 0, easy: 2, hard: 8 },
+        2: { error: 0, easy: 3, hard: 12 },
+        3: { error: 0, easy: 4, hard: 16 }
+    },
+    1: { // 錯題數 = 1
+        1: { error: 1, easy: 2, hard: 7 },
+        2: { error: 1, easy: 3, hard: 11 },
+        3: { error: 1, easy: 4, hard: 15 }
+    },
+    2: { // 錯題數 >= 2
+        1: { error: 2, easy: 1, hard: 7 },
+        2: { error: 2, easy: 2, hard: 11 },
+        3: { error: 2, easy: 3, hard: 15 }
+    }
+};
+
 class Game {
     constructor() {
         this.audio = new AudioEngine();
         this.records = new RecordsManager();
+        this.stats = new StatsManager();
         this.activeMeteors = [];
         this.totalScore = 0;
         this.stageScore = 0;
@@ -609,6 +827,10 @@ class Game {
         this.isGameOver = false;
         this.isPaused = false;
         this.lastMeteorX = null;
+
+        // 智慧出題
+        this.stageQuestions = [];
+        this.questionIndex = 0;
 
         this.elContainer = document.getElementById('game-container');
         this.elCannon = document.getElementById('cannon');
@@ -656,6 +878,7 @@ class Game {
         this.lastMeteorX = null;
         this.lastSpawnTime = 0;
         this.elContainer.innerHTML = '';
+        this.prepareStageQuestions(); // 智慧出題
         this.updateHUD();
         this.updateInputDisplay();
         this.elCannon.style.transform = `translateX(-50%) rotate(0deg)`;
@@ -736,9 +959,77 @@ class Game {
         this.updateHUD();
     }
 
-    generateQuestion() {
+    prepareStageQuestions() {
         const stage = this.currentStage;
-        const pool = Math.random() < stage.easyRatio ? EASY_QUESTIONS : HARD_QUESTIONS;
+        const errors = this.stats.getErrors();
+        const errorCount = Math.min(errors.length, 2);
+        const quotaKey = errorCount >= 2 ? 2 : errorCount;
+        const quota = QUOTA_TABLE[quotaKey][stage.stage];
+
+        const selectedKeys = [];
+
+        // 1. 選錯題
+        const errorQuestions = this.selectErrors(quota.error);
+        selectedKeys.push(...errorQuestions.map(q => q.key));
+
+        // 2. 選 Easy（排除錯題）
+        const easyQuestions = this.stats.selectFromPool(
+            EASY_QUESTIONS, quota.easy, selectedKeys
+        );
+        selectedKeys.push(...easyQuestions.map(q => q.key));
+
+        // 3. 選 Hard（排除錯題和已選 Easy）
+        const hardQuestions = this.stats.selectFromPool(
+            HARD_QUESTIONS, quota.hard, selectedKeys
+        );
+
+        // 4. 合併並打亂
+        this.stageQuestions = this.shuffle([
+            ...errorQuestions, ...easyQuestions, ...hardQuestions
+        ]);
+        this.questionIndex = 0;
+
+        // Debug log
+        console.log(`Stage ${stage.stage} 題目分配:`, {
+            errors: errorQuestions.length,
+            easy: easyQuestions.length,
+            hard: hardQuestions.length,
+            total: this.stageQuestions.length
+        });
+    }
+
+    selectErrors(count) {
+        if (count <= 0) return [];
+        const errors = this.stats.getErrors();
+        if (errors.length === 0) return [];
+
+        // 隨機選取指定數量的錯題
+        const shuffled = this.shuffle([...errors]);
+        const selected = shuffled.slice(0, Math.min(count, errors.length));
+
+        // 將 key 轉換為題目格式
+        return selected.map(e => {
+            const [a, b] = e.key.split('×').map(Number);
+            return { a, b, ans: a * b, key: e.key };
+        });
+    }
+
+    shuffle(array) {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    generateQuestion() {
+        if (this.questionIndex < this.stageQuestions.length) {
+            const q = this.stageQuestions[this.questionIndex++];
+            return { a: q.a, b: q.b, ans: q.ans };
+        }
+        // Fallback（理論上不會執行）
+        const pool = [...EASY_QUESTIONS, ...HARD_QUESTIONS];
         const q = pool[Math.floor(Math.random() * pool.length)];
         return { a: q.a, b: q.b, ans: q.ans };
     }
@@ -748,6 +1039,10 @@ class Game {
         meteor.y = document.getElementById('game-layer').offsetHeight - 86;
         meteor.el.style.top = `${meteor.y}px`;
         meteor.el.classList.add('grounded');
+
+        // 加入錯題庫
+        const key = `${meteor.q.a}×${meteor.q.b}`;
+        this.stats.addError(key);
     }
 
     handleInput(digit) {
@@ -864,6 +1159,11 @@ class Game {
         meteor.el.remove();
         this.activeMeteors = this.activeMeteors.filter(m => m !== meteor);
         this.audio.playSuccess('sky');
+
+        // 更新答題統計
+        const key = `${meteor.q.a}×${meteor.q.b}`;
+        this.stats.incrementCorrect(key);
+        this.stats.incrementStreak(key); // 如果在錯題庫，streak +1
     }
 
     createDebris(meteor) {
@@ -903,6 +1203,13 @@ class Game {
         display.classList.add('error');
         this.audio.playError();
         setTimeout(() => display.classList.remove('error'), 300);
+
+        // 單隕石答錯偵測：只有 1 顆隕石時，答錯必定是該題
+        const activeMeteors = this.activeMeteors.filter(m => !m.destroyed);
+        if (activeMeteors.length === 1) {
+            const key = `${activeMeteors[0].q.a}×${activeMeteors[0].q.b}`;
+            this.stats.addError(key);
+        }
     }
 
     createExplosion(meteor, zone, points) {
@@ -982,6 +1289,79 @@ class Game {
         }
         document.getElementById('leaderboard-screen').classList.remove('hidden');
     }
+
+    showStats(tab = 'errors', multiplier = 2) {
+        const contentEl = document.getElementById('stats-content');
+        const multiplierTabs = document.getElementById('stats-multiplier-tabs');
+        const stats = this.stats.getStats();
+        const errors = this.stats.getErrors();
+
+        // 更新主 tab 狀態
+        document.querySelectorAll('.stats-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.tab === tab);
+        });
+
+        // 顯示/隱藏乘數分頁
+        multiplierTabs.classList.toggle('hidden', tab !== 'all');
+
+        // 更新乘數 tab 狀態
+        document.querySelectorAll('.multiplier-tab').forEach(t => {
+            t.classList.toggle('active', parseInt(t.dataset.mult) === multiplier);
+        });
+
+        let html = '';
+
+        if (tab === 'errors') {
+            // 錯題庫
+            if (errors.length === 0) {
+                html = '<div class="stats-empty">錯題庫為空</div>';
+            } else {
+                errors.forEach(e => {
+                    html += `<div class="stats-item">
+                        <span class="stats-question">${e.key}</span>
+                        <span>
+                            <span class="stats-count">答對 ${stats[e.key] || 0} 次</span>
+                            <span class="stats-streak">連續 ${e.streak}/3</span>
+                        </span>
+                    </div>`;
+                });
+            }
+        } else if (tab === 'weak') {
+            // 弱點題（答對次數最少的 10 題）
+            const sorted = Object.entries(stats)
+                .sort((a, b) => a[1] - b[1])
+                .slice(0, 10);
+            sorted.forEach(([key, count]) => {
+                const inError = errors.some(e => e.key === key);
+                html += `<div class="stats-item">
+                    <span class="stats-question">${key} ${inError ? '⚠️' : ''}</span>
+                    <span class="stats-count">答對 ${count} 次</span>
+                </div>`;
+            });
+        } else {
+            // 全部（按乘數分頁）
+            for (let b = 2; b <= 9; b++) {
+                const key = `${multiplier}×${b}`;
+                const count = stats[key] || 0;
+                const inError = errors.some(e => e.key === key);
+                html += `<div class="stats-item">
+                    <span class="stats-question">${key} ${inError ? '⚠️' : ''}</span>
+                    <span class="stats-count">答對 ${count} 次</span>
+                </div>`;
+            }
+        }
+
+        contentEl.innerHTML = html;
+        document.getElementById('stats-screen').classList.remove('hidden');
+        this.currentStatsTab = tab;
+        this.currentMultiplier = multiplier;
+    }
+
+    goHome() {
+        document.getElementById('end-screen').classList.add('hidden');
+        document.getElementById('start-screen').classList.remove('hidden');
+        document.getElementById('high-score').innerText = this.records.getHighScore();
+    }
 }
 
 const game = new Game();
@@ -1015,6 +1395,25 @@ document.getElementById('btn-end-leaderboard').addEventListener('click', () => {
 });
 document.getElementById('btn-lb-back').addEventListener('click', () => {
     document.getElementById('leaderboard-screen').classList.add('hidden');
+});
+document.getElementById('btn-home').addEventListener('click', () => {
+    game.goHome();
+});
+document.getElementById('btn-stats').addEventListener('click', () => {
+    game.showStats('errors');
+});
+document.getElementById('btn-stats-back').addEventListener('click', () => {
+    document.getElementById('stats-screen').classList.add('hidden');
+});
+document.querySelectorAll('.stats-tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+        game.showStats(e.target.dataset.tab, game.currentMultiplier || 2);
+    });
+});
+document.querySelectorAll('.multiplier-tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+        game.showStats('all', parseInt(e.target.dataset.mult));
+    });
 });
 document.addEventListener('keydown', (e) => {
     if(e.key >= '0' && e.key <= '9') game.handleInput(e.key);
