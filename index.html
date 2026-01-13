@@ -1135,14 +1135,6 @@ class Game {
             ...errorQuestions, ...easyQuestions, ...hardQuestions
         ]);
         this.questionIndex = 0;
-
-        // Debug log
-        console.log(`Stage ${stage.stage} 題目分配:`, {
-            errors: errorQuestions.length,
-            easy: easyQuestions.length,
-            hard: hardQuestions.length,
-            total: this.stageQuestions.length
-        });
     }
 
     selectErrors(count) {
