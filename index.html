@@ -572,7 +572,7 @@
 <script>
 /**
  * 隕石數學防衛隊 - 核心引擎
- * v3.10 Delete Single Record
+ * v3.11 Dynamic Meteor Timing
  */
 
 // === 高分記錄管理 ===
@@ -950,9 +950,10 @@ class Game {
         if (this.isGameOver || this.isPaused) return;
 
         const stage = this.currentStage;
-        // 動態生成間隔：每 3 顆未答隕石 +1 秒
+        // 動態調整：未答 >= 3 顆時，每多 1 顆 +1 秒
         const activeCount = this.activeMeteors.filter(m => !m.destroyed && !m.isGrounded).length;
-        const dynamicInterval = stage.interval + Math.floor(activeCount / 3) * 1000;
+        const overflow = Math.max(0, activeCount - 2);
+        const dynamicInterval = stage.interval + overflow * 1000;
         if (this.questionsLeft > 0 &&
             timestamp - this.lastSpawnTime > dynamicInterval) {
             this.spawnMeteor();
@@ -996,13 +997,18 @@ class Game {
         }
         this.lastMeteorX = x;
 
-        const speedRange = stage.speedMax - stage.speedMin;
+        // 動態落速：未答 >= 3 顆時，落速 = speedMin × 0.9^超額
+        const activeCount = this.activeMeteors.filter(m => !m.destroyed && !m.isGrounded).length;
+        const overflow = Math.max(0, activeCount - 2);
+        const speed = overflow > 0
+            ? stage.speedMin * Math.pow(0.9, overflow)
+            : stage.speedMin + Math.random() * (stage.speedMax - stage.speedMin);
         const meteor = {
             id: Date.now(),
             q: q,
             y: -90,
             x: x,
-            speed: stage.speedMin + (Math.random() * speedRange),
+            speed: speed,
             isGrounded: false,
             destroyed: false,
             shape: METEOR_SHAPES[shapeIdx],
