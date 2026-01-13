@@ -406,6 +406,44 @@
             background: linear-gradient(135deg, #475569, #334155); color: #fff;
         }
 
+        /* 結算畫面 */
+        .result-details {
+            width: 280px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 12px; padding: 15px;
+        }
+        .result-row {
+            display: flex; justify-content: space-between;
+            padding: 8px 5px; color: #94a3b8; font-size: 1.1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .result-row:last-child { border-bottom: none; }
+        .result-row.bonus { color: #4ade80; }
+        .result-row.total {
+            color: var(--gold-accent); font-weight: 700; font-size: 1.3rem;
+            border-top: 2px solid rgba(56, 189, 248, 0.3);
+            margin-top: 5px; padding-top: 12px;
+        }
+
+        /* Combo 顯示 */
+        .combo-display {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.5rem; font-weight: 900;
+            color: #fbbf24;
+            text-shadow: 0 0 20px rgba(251, 191, 36, 0.8), 0 0 40px rgba(251, 191, 36, 0.5);
+            pointer-events: none;
+            z-index: 50;
+            animation: comboPulse 0.3s ease-out;
+        }
+        @keyframes comboPulse {
+            0% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
         /* 統計按鈕（不明顯） */
         .btn-stats {
             position: absolute; bottom: 20px; right: 20px;
@@ -471,6 +509,7 @@
             <div class="hud-item"><span>☄️</span> <span class="progress-val" id="progress">0/10</span></div>
         </div>
         <div id="game-container"></div>
+        <div id="combo-display" class="combo-display hidden">2 STREAK</div>
         <div id="defense-line"></div>
         <div id="cannon-base"></div>
         <div id="cannon">
@@ -518,9 +557,19 @@
         <button class="btn-large" id="btn-stage-start">開始</button>
     </div>
 
+    <div id="stage-result-screen" class="overlay hidden">
+        <h1 class="title" id="result-stage-title" style="font-size: 2rem;">STAGE 1 完成！</h1>
+        <div id="result-details" class="result-details"></div>
+        <div style="font-size: 1.3rem; color: #94a3b8; margin: 20px 0;">
+            累計總分: <span id="result-total-score" style="color:var(--gold-accent);">0</span>
+        </div>
+        <button class="btn-large" id="btn-result-next">下一關</button>
+    </div>
+
     <div id="end-screen" class="overlay hidden">
         <h1 class="title">任務完成</h1>
         <div id="rank-display" class="rank-badge hidden">第 1 名！</div>
+        <div id="end-details" class="result-details" style="margin-bottom: 20px;"></div>
         <div style="font-size: 2.5rem; margin-bottom: 30px;">
             總分: <span id="final-score" style="color:var(--gold-accent); text-shadow: 0 0 10px var(--gold-accent);">0</span>
         </div>
@@ -572,7 +621,7 @@
 <script>
 /**
  * 隕石數學防衛隊 - 核心引擎
- * v3.11 Dynamic Meteor Timing
+ * v3.12 Combo Scoring System
  */
 
 // === 高分記錄管理 ===
@@ -894,6 +943,15 @@ class Game {
         this.stageQuestions = [];
         this.questionIndex = 0;
 
+        // Combo 計分系統
+        this.combo = 0;
+        this.comboScores = [];        // 當前連續段每題分數
+        this.stageBaseScore = 0;      // 回合原始分數
+        this.stageComboBonus = 0;     // 回合即時加成
+        this.stageStreakBonuses = []; // 回合連續5+獎勵
+        this.perfectStages = [];      // 全對回合
+        this.stageScoresHistory = []; // 每回合總分
+
         this.elContainer = document.getElementById('game-container');
         this.elCannon = document.getElementById('cannon');
         this.elScore = document.getElementById('score');
@@ -913,6 +971,8 @@ class Game {
     start() {
         this.totalScore = 0;
         this.currentStageIndex = 0;
+        this.perfectStages = [];
+        this.stageScoresHistory = [];
         this.showStageScreen();
     }
 
@@ -941,6 +1001,14 @@ class Game {
         this.lastSpawnTime = 0;
         this.elContainer.innerHTML = '';
         this.prepareStageQuestions(); // 智慧出題
+
+        // 重置回合 combo 追蹤
+        this.combo = 0;
+        this.comboScores = [];
+        this.stageBaseScore = 0;
+        this.stageComboBonus = 0;
+        this.stageStreakBonuses = [];
+
         this.updateHUD();
         this.updateInputDisplay();
         this.elCannon.style.transform = `translateX(-50%) rotate(0deg)`;
@@ -991,7 +1059,15 @@ class Game {
             let attempts = 0;
             const minDistance = 20;
             do {
-                x = Math.random() * 80 + 10;
+                // combo >= 2 時避開中央 (35%-65%)，讓 STREAK 顯示不被擋住
+                if (this.combo >= 2) {
+                    // 左側 10-35% 或右側 65-90%
+                    x = Math.random() < 0.5
+                        ? Math.random() * 25 + 10   // 10-35%
+                        : Math.random() * 25 + 65;  // 65-90%
+                } else {
+                    x = Math.random() * 80 + 10;    // 10-90%
+                }
                 attempts++;
             } while (Math.abs(x - this.lastMeteorX) < minDistance && attempts < 10);
         }
@@ -1111,6 +1187,9 @@ class Game {
         meteor.el.style.top = `${meteor.y}px`;
         meteor.el.classList.add('grounded');
 
+        // 中斷連續
+        this.breakCombo();
+
         // 加入錯題庫
         const key = `${meteor.q.a}×${meteor.q.b}`;
         this.stats.addError(key);
@@ -1211,17 +1290,29 @@ class Game {
         let basePoints = 0;
         let zone = 'ground';
 
+        // 地面不乘倍率，其他區域乘倍率
         if (meteor.isGrounded) {
             basePoints = 40; zone = 'ground';
         } else if (ratio < GAME_CONFIG.zones.sky) {
-            basePoints = 100; zone = 'sky';
+            basePoints = Math.round(100 * stage.multiplier); zone = 'sky';
         } else if (ratio < GAME_CONFIG.zones.high) {
-            basePoints = 80; zone = 'high';
+            basePoints = Math.round(80 * stage.multiplier); zone = 'high';
         } else {
-            basePoints = 60; zone = 'low';
+            basePoints = Math.round(60 * stage.multiplier); zone = 'low';
         }
 
-        const points = Math.round(basePoints * stage.multiplier);
+        // Combo 計算
+        this.combo++;
+        this.showCombo();
+        const comboMultiplier = Math.min(2.0, 1 + (this.combo - 1) * 0.1);
+        const comboBonus = Math.round(basePoints * comboMultiplier) - basePoints;
+        const points = basePoints + comboBonus;
+
+        // 追蹤分數
+        this.stageBaseScore += basePoints;
+        this.stageComboBonus += comboBonus;
+        this.comboScores.push(basePoints); // 記錄原始分（用於連續獎勵計算）
+
         this.stageScore += points;
         this.totalScore += points;
         this.updateHUD();
@@ -1235,6 +1326,39 @@ class Game {
         const key = `${meteor.q.a}×${meteor.q.b}`;
         this.stats.incrementCorrect(key);
         this.stats.incrementStreak(key); // 如果在錯題庫，streak +1
+    }
+
+    breakCombo() {
+        // 連續 5+ 時，結算這段連續的獎勵
+        if (this.combo >= 5) {
+            const streakSum = this.comboScores.reduce((a, b) => a + b, 0);
+            const streakMultiplier = 1 + (this.combo - 5) * 0.2; // 5:1.0, 6:1.2, ..., 10:2.0
+            const streakBonus = Math.round(streakSum * streakMultiplier);
+            this.stageStreakBonuses.push({
+                count: this.combo,
+                sum: streakSum,
+                multiplier: streakMultiplier,
+                bonus: streakBonus
+            });
+        }
+        this.combo = 0;
+        this.comboScores = [];
+        this.hideCombo();
+    }
+
+    showCombo() {
+        if (this.combo < 2) return;
+        const el = document.getElementById('combo-display');
+        el.textContent = `${this.combo} STREAK`;
+        el.classList.remove('hidden');
+        // 重新觸發動畫
+        el.style.animation = 'none';
+        el.offsetHeight; // 強制 reflow
+        el.style.animation = 'comboPulse 0.3s ease-out';
+    }
+
+    hideCombo() {
+        document.getElementById('combo-display').classList.add('hidden');
     }
 
     createDebris(meteor) {
@@ -1274,6 +1398,9 @@ class Game {
         display.classList.add('error');
         this.audio.playError();
         setTimeout(() => display.classList.remove('error'), 300);
+
+        // 中斷連續
+        this.breakCombo();
 
         // 單隕石答錯偵測：只有 1 顆隕石時，答錯必定是該題
         const activeMeteors = this.activeMeteors.filter(m => !m.destroyed);
@@ -1316,6 +1443,59 @@ class Game {
         this.isGameOver = true;
         cancelAnimationFrame(this.gameLoopId);
 
+        // 結算最後一段連續
+        this.breakCombo();
+
+        // 計算連續獎勵總和
+        const streakBonusTotal = this.stageStreakBonuses.reduce((sum, s) => sum + s.bonus, 0);
+        this.totalScore += streakBonusTotal;
+
+        // 檢查是否全對（回合內沒有任何中斷）
+        const stage = this.currentStage;
+        const isPerfect = this.stageStreakBonuses.length === 1 &&
+                          this.stageStreakBonuses[0].count === stage.questions;
+        if (isPerfect) {
+            this.perfectStages.push(this.currentStageIndex + 1);
+        }
+
+        // 記錄回合分數
+        const stageTotal = this.stageBaseScore + this.stageComboBonus + streakBonusTotal;
+        this.stageScoresHistory.push(stageTotal);
+
+        // 顯示結算畫面
+        this.showStageResult(streakBonusTotal);
+    }
+
+    showStageResult(streakBonusTotal) {
+        const stage = this.currentStage;
+        document.getElementById('result-stage-title').innerText = `STAGE ${stage.stage} 完成！`;
+
+        // 構建結算內容
+        let html = '';
+        html += `<div class="result-row"><span>原始分數</span><span>${this.stageBaseScore}</span></div>`;
+        if (this.stageComboBonus > 0) {
+            html += `<div class="result-row bonus"><span>即時加成</span><span>+${this.stageComboBonus}</span></div>`;
+        }
+        if (this.stageStreakBonuses.length > 0) {
+            this.stageStreakBonuses.forEach(s => {
+                html += `<div class="result-row bonus"><span>連對 ${s.count} 題</span><span>+${s.bonus}</span></div>`;
+            });
+        }
+        const stageTotal = this.stageBaseScore + this.stageComboBonus + streakBonusTotal;
+        html += `<div class="result-row total"><span>回合總分</span><span>${stageTotal}</span></div>`;
+
+        document.getElementById('result-details').innerHTML = html;
+        document.getElementById('result-total-score').innerText = this.totalScore;
+
+        // 設定按鈕
+        const isLastStage = this.currentStageIndex >= STAGES.length - 1;
+        document.getElementById('btn-result-next').innerText = isLastStage ? '查看結果' : '下一關';
+
+        document.getElementById('stage-result-screen').classList.remove('hidden');
+    }
+
+    proceedFromResult() {
+        document.getElementById('stage-result-screen').classList.add('hidden');
         if (this.currentStageIndex < STAGES.length - 1) {
             this.currentStageIndex++;
             this.showStageScreen();
@@ -1325,7 +1505,29 @@ class Game {
     }
 
     endGame() {
-        document.getElementById('end-screen').classList.remove('hidden');
+        // 計算全對獎勵
+        let perfectBonus = 0;
+        const perfectCount = this.perfectStages.length;
+        if (perfectCount === 3) {
+            // 3 回合全對：總分 × 1
+            perfectBonus = this.totalScore;
+        } else if (perfectCount === 2) {
+            // 2 回合全對：這 2 回合分數 × 1
+            this.perfectStages.forEach(stageNum => {
+                perfectBonus += this.stageScoresHistory[stageNum - 1];
+            });
+        }
+        this.totalScore += perfectBonus;
+
+        // 顯示結算明細
+        let html = '';
+        html += `<div class="result-row"><span>基本總分</span><span>${this.totalScore - perfectBonus}</span></div>`;
+        if (perfectBonus > 0) {
+            const label = perfectCount === 3 ? '全對獎勵 (3關)' : '全對獎勵 (2關)';
+            html += `<div class="result-row bonus"><span>${label}</span><span>+${perfectBonus}</span></div>`;
+            html += `<div class="result-row total"><span>最終總分</span><span>${this.totalScore}</span></div>`;
+        }
+        document.getElementById('end-details').innerHTML = html;
         document.getElementById('final-score').innerText = this.totalScore;
 
         // 保存記錄並顯示排名
@@ -1337,6 +1539,8 @@ class Game {
         } else {
             rankDisplay.classList.add('hidden');
         }
+
+        document.getElementById('end-screen').classList.remove('hidden');
     }
 
     showLeaderboard() {
@@ -1474,6 +1678,9 @@ document.getElementById('btn-start').addEventListener('click', () => {
 document.getElementById('btn-stage-start').addEventListener('click', () => {
     if(game.audio.ctx.state === 'suspended') game.audio.ctx.resume();
     game.startStage();
+});
+document.getElementById('btn-result-next').addEventListener('click', () => {
+    game.proceedFromResult();
 });
 document.getElementById('btn-restart').addEventListener('click', () => {
     document.getElementById('end-screen').classList.add('hidden');
